@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAuth } from './hooks/useAuth';
 import { useProfile } from './hooks/useProfile';
 import { useAppointments, useRegistrations } from './hooks/useActivities';
+import { useHealthData } from './hooks/useHealthData';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Social from './pages/Social';
@@ -66,25 +67,26 @@ export default function App() {
  * 只有认证通过后才渲染此组件，确保数据 hooks 的 getUser() 能正常工作
  */
 function AuthenticatedApp({ signOut }: { signOut: () => Promise<void> }) {
-  const { profile, activeChild } = useProfile();
+  const { profile, activeChild, refetch: refetchProfile } = useProfile();
   const { nextAppointment, createAppointment } = useAppointments();
   const { registrations, submitRegistration } = useRegistrations();
+  const { healthScore, physicalData } = useHealthData(activeChild?.id || null);
 
   const [currentPage, setCurrentPage] = useState('dashboard');
-  const [previousPage, setPreviousPage] = useState('dashboard');
+  const [pageHistory, setPageHistory] = useState<string[]>(['dashboard']);
   const [bookingType, setBookingType] = useState<'activity' | 'service'>('activity');
   const [historyTitle, setHistoryTitle] = useState('');
   const [detailTitle, setDetailTitle] = useState('');
   const [servicesInitialTab, setServicesInitialTab] = useState<'public' | 'personal'>('public');
   const [highlightRequest, setHighlightRequest] = useState<string | undefined>(undefined);
 
-  // 从报名记录中提取已报名的活动和服务标题
-  const registeredActivities = registrations
-    .filter(r => r.item_type === 'activity')
-    .map(r => r.item_title);
-  const registeredServices = registrations
-    .filter(r => r.item_type === 'service')
-    .map(r => r.item_title);
+  // 从报名记录中提取对应的活动和服务完整报名数据
+  const activityRegistrations = registrations.filter(r => r.item_type === 'activity');
+  const serviceRegistrations = registrations.filter(r => r.item_type === 'service');
+
+  // 保留仅含标题的数组给 Services.tsx 概览组件使用
+  const registeredActivities = activityRegistrations.map(r => r.item_title);
+  const registeredServices = serviceRegistrations.map(r => r.item_title);
 
   // 将 Supabase 格式的下次预约映射为页面组件使用的格式
   const nextAppointmentMapped = nextAppointment ? {
@@ -94,43 +96,71 @@ function AuthenticatedApp({ signOut }: { signOut: () => Promise<void> }) {
     type: nextAppointment.item_type as 'activity' | 'service',
   } : undefined;
 
+  // 导航前进：将当前页压入历史栈
   const handleNavigate = (page: string) => {
-    if (page === 'dashboard' || page === 'social' || page === 'services' || page === 'behavior' || page === 'decision') {
-      setPreviousPage('dashboard');
-    } else {
-      setPreviousPage(currentPage);
-    }
+    setPageHistory(prev => [...prev, currentPage]);
     setCurrentPage(page);
   };
 
-  const handleRegistrationSubmit = async () => {
+  // 导航返回：从历史栈弹出上一页
+  const goBack = () => {
+    setPageHistory(prev => {
+      const newHistory = [...prev];
+      const lastPage = newHistory.pop() || 'dashboard';
+      setCurrentPage(lastPage);
+      return newHistory;
+    });
+  };
+
+  const handleRegistrationSubmit = async (formData?: {
+    childName: string;
+    childAge: number;
+    childGender: string;
+    healthNotes: string;
+    selectedDate: string;
+    selectedTime: string;
+    parentName: string;
+    parentPhone: string;
+  }) => {
     const title = detailTitle || (bookingType === 'activity' ? 'ADHD 儿童感统专注力训练营' : '一对一心理咨询与行为干预');
 
-    // 校验用户数据是否就绪
-    if (!profile || !activeChild) {
-      console.error('报名失败: 用户档案或儿童数据未就绪', { profile: !!profile, activeChild: !!activeChild });
-      alert('请先完善个人档案和儿童信息后再报名');
-      return;
-    }
-
     try {
+      const { data: { user } } = await (await import('./lib/supabase')).supabase.auth.getUser();
+      if (!user) {
+        alert('请先登录');
+        return;
+      }
+
+      // 优先使用表单数据，其次使用 profile/activeChild 中的数据
+      const childName = formData?.childName || activeChild?.full_name || '';
+      const childAge = formData?.childAge || activeChild?.age || 0;
+      const childGender = formData?.childGender || activeChild?.gender || '男';
+
       await submitRegistration({
-        profile_id: profile.id,
-        child_id: activeChild.id,
+        profile_id: user.id,
+        child_id: activeChild?.id || user.id,
         item_type: bookingType,
         item_id: '',
         item_title: title,
+        child_name: childName,
+        child_age: childAge,
+        child_gender: childGender,
+        health_notes: formData?.healthNotes || '',
+        selected_date: formData?.selectedDate || '',
+        selected_time: formData?.selectedTime || '',
+        parent_name: formData?.parentName || profile?.full_name || '',
+        parent_phone: formData?.parentPhone || profile?.phone || '',
       });
 
       await createAppointment({
-        profile_id: profile.id,
+        profile_id: user.id,
         title,
-        appointment_date: '10月28日',
-        appointment_time: '14:00',
+        appointment_date: formData?.selectedDate || '10月28日',
+        appointment_time: formData?.selectedTime || '14:00',
         item_type: bookingType,
       });
 
-      // 提交成功后再跳转
+      // 提交成功后跳转
       handleNavigate('reservation_success');
     } catch (err) {
       console.error('报名失败:', err);
@@ -162,6 +192,8 @@ function AuthenticatedApp({ signOut }: { signOut: () => Promise<void> }) {
         }}
         childName={activeChild?.full_name}
         profileName={profile?.full_name}
+        healthScore={healthScore}
+        physicalData={physicalData}
       />;
       case 'social': return <Social onOpenTest={() => handleNavigate('assessment_subpage')} onOpenDetail={() => handleNavigate('social_detail')} onOpenService={(title) => { setDetailTitle(title || ''); setBookingType('service'); handleNavigate('service_detail'); }} onOpenActivity={(title) => { setDetailTitle(title || ''); setBookingType('activity'); handleNavigate('activity_detail'); }} onOpenHistory={() => { setHistoryTitle('社交能力'); handleNavigate('history_list'); }} onOpenFeedback={() => handleNavigate('feedback')} childId={activeChild?.id} />;
       case 'services': return <Services
@@ -175,45 +207,45 @@ function AuthenticatedApp({ signOut }: { signOut: () => Promise<void> }) {
       />;
       case 'behavior': return <Behavior onOpenTest={() => handleNavigate('assessment_subpage')} onOpenDetail={() => handleNavigate('behavior_detail')} onOpenService={(title) => { setDetailTitle(title || ''); setBookingType('service'); handleNavigate('service_detail'); }} onOpenActivity={(title) => { setDetailTitle(title || ''); setBookingType('activity'); handleNavigate('activity_detail'); }} onOpenHistory={() => { setHistoryTitle('行为表现'); handleNavigate('history_list'); }} onOpenFeedback={() => handleNavigate('feedback')} childId={activeChild?.id} />;
       case 'decision': return <Decision onOpenTest={() => handleNavigate('assessment_subpage')} onOpenDetail={() => handleNavigate('decision_detail')} onOpenService={(title) => { setDetailTitle(title || ''); setBookingType('service'); handleNavigate('service_detail'); }} onOpenActivity={(title) => { setDetailTitle(title || ''); setBookingType('activity'); handleNavigate('activity_detail'); }} onOpenHistory={() => { setHistoryTitle('决策方式'); handleNavigate('history_list'); }} onOpenFeedback={() => handleNavigate('feedback')} childId={activeChild?.id} />;
-      case 'profile': return <Profile onLogout={handleLogout} onBack={() => handleNavigate('dashboard')} profileName={profile?.full_name} profilePhone={profile?.phone} childName={activeChild?.full_name} />;
-      case 'test': return <Assessment onBack={() => setCurrentPage(previousPage)} />;
-      case 'assessment_subpage': return <AssessmentSubPage onBack={() => setCurrentPage(previousPage)} />;
-      case 'activity_detail_report': return <ActivityDetailReport onBack={() => setCurrentPage(previousPage)} title={detailTitle} />;
-      case 'social_detail': return <SocialDetail onBack={() => setCurrentPage(previousPage)} />;
-      case 'behavior_detail': return <BehaviorDetail onBack={() => setCurrentPage(previousPage)} />;
-      case 'decision_detail': return <DecisionDetail onBack={() => setCurrentPage(previousPage)} />;
-      case 'activity_detail': return <ActivityDetail onBack={() => setCurrentPage(previousPage)} onRegister={() => handleNavigate('activity_registration')} title={detailTitle} />;
-      case 'service_detail': return <ServiceDetail onBack={() => setCurrentPage(previousPage)} onRegister={() => handleNavigate('service_registration')} title={detailTitle} />;
-      case 'activity_registration': return <ActivityRegistration onBack={() => setCurrentPage(previousPage)} onSubmit={handleRegistrationSubmit} title={detailTitle} />;
-      case 'service_registration': return <ServiceRegistration onBack={() => setCurrentPage(previousPage)} onSubmit={handleRegistrationSubmit} title={detailTitle} />;
+      case 'profile': return <Profile onLogout={handleLogout} onBack={() => handleNavigate('dashboard')} profileName={profile?.full_name} profilePhone={profile?.phone} childName={activeChild?.full_name} childAge={activeChild?.age || undefined} childGender={activeChild?.gender || undefined} profileId={profile?.id} childId={activeChild?.id} onProfileUpdated={refetchProfile} />;
+      case 'test': return <Assessment onBack={goBack} />;
+      case 'assessment_subpage': return <AssessmentSubPage onBack={goBack} />;
+      case 'activity_detail_report': return <ActivityDetailReport onBack={goBack} title={detailTitle} childId={activeChild?.id} />;
+      case 'social_detail': return <SocialDetail onBack={goBack} />;
+      case 'behavior_detail': return <BehaviorDetail onBack={goBack} />;
+      case 'decision_detail': return <DecisionDetail onBack={goBack} />;
+      case 'activity_detail': return <ActivityDetail onBack={goBack} onRegister={() => handleNavigate('activity_registration')} title={detailTitle} />;
+      case 'service_detail': return <ServiceDetail onBack={goBack} onRegister={() => handleNavigate('service_registration')} title={detailTitle} />;
+      case 'activity_registration': return <ActivityRegistration onBack={goBack} onSubmit={handleRegistrationSubmit} title={detailTitle} defaultChildName={activeChild?.full_name} defaultChildAge={activeChild?.age?.toString()} defaultChildGender={activeChild?.gender} defaultParentName={profile?.full_name} defaultParentPhone={profile?.phone} />;
+      case 'service_registration': return <ServiceRegistration onBack={goBack} onSubmit={handleRegistrationSubmit} title={detailTitle} defaultChildName={activeChild?.full_name} defaultChildAge={activeChild?.age?.toString()} defaultChildGender={activeChild?.gender} defaultParentName={profile?.full_name} defaultParentPhone={profile?.phone} />;
       case 'reservation_success': return <ReservationSuccess onViewAppointments={() => {
-        setHighlightRequest(nextAppointmentMapped?.title);
+        setHighlightRequest(bookingType === 'activity' ? '已报名' : '待服务');
         handleNavigate(bookingType === 'activity' ? 'activity_list' : 'service_list');
       }} onBackHome={() => handleNavigate('dashboard')} title={detailTitle} />;
-      case 'activity_list': return <ActivityList
-        onBack={() => { setServicesInitialTab('public'); handleNavigate('services'); }}
-        onOpenDetail={(title) => { setBookingType('activity'); setDetailTitle(title); handleNavigate('activity_detail'); }}
-        onOpenDetailReport={(title) => { setDetailTitle(title); handleNavigate('activity_detail_report'); }}
-        onOpenFeedback={() => handleNavigate('feedback')}
-        registeredActivities={registeredActivities}
-        initialFilter={highlightRequest && nextAppointmentMapped?.type === 'activity' ? '已报名' : '全部'}
-        highlightTitle={highlightRequest}
-        onHighlightConsumed={() => setHighlightRequest(undefined)}
-        childId={activeChild?.id}
-      />;
       case 'service_list': return <ServiceList
-        onBack={() => { setServicesInitialTab('personal'); handleNavigate('services'); }}
-        onOpenDetail={(title) => { setBookingType('service'); setDetailTitle(title); handleNavigate('service_detail'); }}
-        onOpenDetailReport={(title) => { setDetailTitle(title); handleNavigate('activity_detail_report'); }}
+        onBack={goBack}
+        onOpenDetail={(title) => { setDetailTitle(title || ''); setBookingType('service'); handleNavigate('service_detail'); }}
+        onOpenDetailReport={(title) => { setDetailTitle(title || ''); handleNavigate('activity_detail_report'); }}
         onOpenFeedback={() => handleNavigate('feedback')}
-        registeredServices={registeredServices}
-        initialFilter={highlightRequest && nextAppointmentMapped?.type === 'service' ? '待服务' : '全部'}
-        highlightTitle={highlightRequest}
-        onHighlightConsumed={() => setHighlightRequest(undefined)}
+        registrations={serviceRegistrations}
+        initialFilter={highlightRequest || '全部'}
         childId={activeChild?.id}
+        profileId={profile?.id}
+        refetchRegistrations={submitRegistration}
       />;
-      case 'feedback': return <Feedback onBack={() => setCurrentPage(previousPage)} />;
-      case 'physical_data_update': return <PhysicalDataUpdate onBack={() => setCurrentPage(previousPage)} onSubmit={() => setCurrentPage(previousPage)} />;
+      case 'activity_list': return <ActivityList
+        onBack={goBack}
+        onOpenDetail={(title) => { setDetailTitle(title || ''); setBookingType('activity'); handleNavigate('activity_detail'); }}
+        onOpenDetailReport={(title) => { setDetailTitle(title || ''); handleNavigate('activity_detail_report'); }}
+        onOpenFeedback={() => handleNavigate('feedback')}
+        registrations={activityRegistrations}
+        initialFilter={highlightRequest || '全部'}
+        childId={activeChild?.id}
+        profileId={profile?.id}
+        refetchRegistrations={submitRegistration}
+      />;
+      case 'feedback': return <Feedback onBack={goBack} />;
+      case 'physical_data_update': return <PhysicalDataUpdate onBack={goBack} onSubmit={goBack} />;
       case 'history_list': return <HistoryList onBack={() => {
         if (historyTitle === '社交能力') handleNavigate('social');
         else if (historyTitle === '行为表现') handleNavigate('behavior');

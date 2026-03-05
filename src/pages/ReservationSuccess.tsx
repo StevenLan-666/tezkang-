@@ -4,9 +4,12 @@ interface ReservationSuccessProps {
   onViewAppointments: () => void;
   onBackHome: () => void;
   title?: string;
+  selectedDate?: string;
+  selectedTime?: string;
+  parentName?: string;
 }
 
-export default function ReservationSuccess({ onViewAppointments, onBackHome, title }: ReservationSuccessProps) {
+export default function ReservationSuccess({ onViewAppointments, onBackHome, title, selectedDate, selectedTime, parentName }: ReservationSuccessProps) {
   return (
     <div className="bg-background-light dark:bg-background-dark text-text-main dark:text-white min-h-screen flex flex-col justify-between antialiased">
       <div className="px-6 py-3 flex justify-between items-center text-xs font-semibold text-text-main dark:text-slate-300 opacity-90 z-20">
@@ -47,8 +50,8 @@ export default function ReservationSuccess({ onViewAppointments, onBackHome, tit
                 <span className="material-symbols-outlined text-primary text-3xl">psychology</span>
               </div>
               <div>
-                <h2 className="text-lg font-bold text-text-main dark:text-white leading-tight mb-1">{title || '感觉统合训练'}</h2>
-                <span className="text-sm text-text-sub dark:text-slate-400">莎拉·威尔逊 医生</span>
+                <h2 className="text-lg font-bold text-text-main dark:text-white leading-tight mb-1">{title || '活动/服务'}</h2>
+                {parentName && <span className="text-sm text-text-sub dark:text-slate-400">报名人：{parentName}</span>}
               </div>
             </div>
 
@@ -61,7 +64,9 @@ export default function ReservationSuccess({ onViewAppointments, onBackHome, tit
                 </div>
                 <div className="flex flex-col">
                   <span className="text-xs text-text-sub dark:text-slate-400">日期 & 时间</span>
-                  <span className="font-bold text-text-main dark:text-white text-sm">10月16日 周三 • 下午 14:00</span>
+                  <span className="font-bold text-text-main dark:text-white text-sm">
+                    {selectedDate && selectedTime ? `${selectedDate} • ${selectedTime}` : '待确认'}
+                  </span>
                 </div>
               </div>
 
@@ -71,7 +76,17 @@ export default function ReservationSuccess({ onViewAppointments, onBackHome, tit
                 </div>
                 <div className="flex flex-col">
                   <span className="text-xs text-text-sub dark:text-slate-400">地点</span>
-                  <span className="font-bold text-text-main dark:text-white text-sm">儿童健康中心, 302室</span>
+                  <span className="font-bold text-text-main dark:text-white text-sm">待分配（工作人员将与您联系确认）</span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-green-50 dark:bg-green-900/20 flex items-center justify-center text-green-600 dark:text-green-400">
+                  <span className="material-symbols-outlined text-sm">info</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs text-text-sub dark:text-slate-400">状态</span>
+                  <span className="font-bold text-amber-500 text-sm">待确认（测试阶段免支付）</span>
                 </div>
               </div>
             </div>

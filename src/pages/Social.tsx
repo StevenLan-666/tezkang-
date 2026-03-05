@@ -1,22 +1,41 @@
-import { useState } from 'react';
-import { useHistoryRecords } from '../hooks/useHealthData';
+import { useState, useMemo } from 'react';
+import { useHistoryRecords, useAssessments } from '../hooks/useHealthData';
+import RecommendedSection from '../components/RecommendedSection';
 
 export default function Social({ onOpenTest, onOpenDetail, onOpenService, onOpenActivity, onOpenHistory, onOpenFeedback, childId }: { onOpenTest?: () => void, onOpenDetail?: () => void, onOpenService?: (title?: string) => void, onOpenActivity?: (title?: string) => void, onOpenHistory?: () => void, onOpenFeedback?: () => void, childId?: string | null }) {
-  const [selectedDate, setSelectedDate] = useState('2023年 10月');
+  // 从 DB 获取社交维度的所有评估数据
+  const { assessments } = useAssessments(childId || null, 'social');
+
+  // 动态生成可选日期列表（从评估数据的 period 字段）
+  const dates = useMemo(() => {
+    if (assessments.length === 0) return ['暂无数据'];
+    return assessments.map(a => a.period);
+  }, [assessments]);
+
+  const [selectedDate, setSelectedDate] = useState('');
   const [showDateDropdown, setShowDateDropdown] = useState(false);
 
-  const dates = ['2023年 10月', '2023年 9月', '2023年 8月'];
+  // 自动选中第一个（最新）日期
+  const activeDate = selectedDate || dates[0];
 
-  const getScoreData = () => {
-    switch (selectedDate) {
-      case '2023年 9月': return { score: 80, improvement: '+2%', comm: '良好', empathy: '一般', team: '较弱', control: '一般' };
-      case '2023年 8月': return { score: 78, improvement: '-', comm: '一般', empathy: '较弱', team: '较弱', control: '较弱' };
-      case '2023年 10月':
-      default: return { score: 85, improvement: '+5%', comm: '优秀', empathy: '良好', team: '一般', control: '优秀' };
-    }
-  };
+  // 从 DB 评估数据中提取当前选中月份的评分
+  const data = useMemo(() => {
+    const current = assessments.find(a => a.period === activeDate);
+    if (!current) return { score: 0, improvement: '-', comm: '-', empathy: '-', team: '-', control: '-' };
 
-  const data = getScoreData();
+    // 从 assessment_details 中按维度名匹配
+    const getDetail = (name: string) => current.details.find(d => d.dimension_name === name)?.dimension_value || '-';
+
+    return {
+      score: current.score,
+      improvement: current.improvement || '-',
+      comm: getDetail('主动交流'),
+      empathy: getDetail('同理心'),
+      team: getDetail('团队合作'),
+      control: getDetail('冲突处理'),
+    };
+  }, [assessments, activeDate]);
+
   const { records: socialHistory } = useHistoryRecords(childId || null, 'social');
 
   return (
@@ -38,7 +57,7 @@ export default function Social({ onOpenTest, onOpenDetail, onOpenService, onOpen
             onClick={() => setShowDateDropdown(!showDateDropdown)}
           >
             <span className="material-symbols-outlined text-primary text-lg">calendar_today</span>
-            <span className="font-medium text-sm text-slate-600 dark:text-slate-300">{selectedDate}</span>
+            <span className="font-medium text-sm text-slate-600 dark:text-slate-300">{activeDate}</span>
             {data.improvement !== '-' && (
               <span className="text-xs font-bold text-green-500 ml-1">{data.improvement}</span>
             )}
@@ -49,7 +68,7 @@ export default function Social({ onOpenTest, onOpenDetail, onOpenService, onOpen
               {dates.map(date => (
                 <div
                   key={date}
-                  className={`px-4 py-2 text-sm cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors ${selectedDate === date ? 'text-primary font-bold bg-primary/5' : 'text-slate-600 dark:text-slate-300'}`}
+                  className={`px-4 py-2 text-sm cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors ${activeDate === date ? 'text-primary font-bold bg-primary/5' : 'text-slate-600 dark:text-slate-300'}`}
                   onClick={() => {
                     setSelectedDate(date);
                     setShowDateDropdown(false);
@@ -115,7 +134,7 @@ export default function Social({ onOpenTest, onOpenDetail, onOpenService, onOpen
             <h3 className="text-lg font-bold text-slate-700 dark:text-slate-200">进行测试</h3>
           </div>
           <div className="flex gap-3">
-            <div onClick={() => onOpenService?.('日常测试和干预')} className="flex-[3] bg-primary/10 dark:bg-primary/20 rounded-2xl p-4 shadow-sm border border-primary/20 flex flex-col justify-between cursor-pointer hover:bg-primary/20 transition-colors relative overflow-hidden h-32">
+            <div onClick={() => onOpenService?.('一对一心理咨询和行为干预')} className="flex-[3] bg-primary/10 dark:bg-primary/20 rounded-2xl p-4 shadow-sm border border-primary/20 flex flex-col justify-between cursor-pointer hover:bg-primary/20 transition-colors relative overflow-hidden h-32">
               <div className="absolute -right-4 -bottom-4 w-20 h-20 bg-primary/20 rounded-full blur-xl"></div>
               <div className="relative z-10">
                 <h4 className="font-bold text-primary dark:text-primary-light text-lg mb-0.5">预约测试</h4>
@@ -177,30 +196,7 @@ export default function Social({ onOpenTest, onOpenDetail, onOpenService, onOpen
           </div>
         </section>
 
-        <section className="pt-2 pb-6">
-          <h3 className="text-lg font-bold mb-3 px-1 text-slate-800 dark:text-slate-200">推荐服务</h3>
-          <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar px-1">
-            <div className="min-w-[260px] bg-surface-light dark:bg-surface-dark p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
-              <div className="h-32 rounded-xl bg-gray-200 dark:bg-gray-700 mb-3 relative overflow-hidden group">
-                <span className="absolute top-2 right-2 bg-black/30 backdrop-blur-md text-white text-[10px] font-bold px-2 py-1 rounded-lg z-10">课程</span>
-                <img alt="Children playing together" className="w-full h-full object-cover opacity-90 transition-transform duration-500 group-hover:scale-105" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDCJhrTGsnpisibkRqqOuKw0VRd0KD2uVn6RR0_B5aVlhvR-lyWVsnTO4Uy7KblhLfvwmAwdBt20SYfb6jbsUNlLD1e52HN_26J_lJ53PlmcbeJQhaCWQyJ0aVwItN8aYIr6svWEgvruhnvlKFeXRkhodLzz4Hhjv9l7XXyduZQ4lPrM0y7maScpmOxy495VWFED0ZwQqC1BV9nQb3GASvMqMhxS3kS5oFo5MvtQLMeYmZetPAoi57cgWxI2UwdGhWSON46c6vtqoMO" />
-              </div>
-              <h4 className="font-bold text-slate-700 dark:text-slate-200 text-sm">社交技能提升班</h4>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 mb-4 line-clamp-2">通过互动游戏和角色扮演，提升孩子在集体环境中的沟通与协作能力。</p>
-              <button onClick={() => onOpenService?.('社交技能提升班')} className="w-full py-2.5 rounded-xl border border-primary/30 text-primary text-xs font-semibold hover:bg-primary/5 dark:hover:bg-primary/10 transition-colors">预约课程</button>
-            </div>
-
-            <div className="min-w-[260px] bg-surface-light dark:bg-surface-dark p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
-              <div className="h-32 rounded-xl bg-gray-200 dark:bg-gray-700 mb-3 relative overflow-hidden group">
-                <span className="absolute top-2 right-2 bg-black/30 backdrop-blur-md text-white text-[10px] font-bold px-2 py-1 rounded-lg z-10">活动</span>
-                <img alt="Group therapy session" className="w-full h-full object-cover opacity-90 transition-transform duration-500 group-hover:scale-105" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBWgXMCoejP-ji49PT_G4y_pHGMWgzucXvI-Dfg52VVmAGQfLoZoWgPyYzeem7tJK26t-lajTAtKWNe4MQUb2x06Hj2F9cUl6Erg-KGMtvl941P4324xD8bGo0TrJwZvRdvfh-ipNmYmI76nNKvlaCBH-3oMCryWuDSU3gTw5tbhssl6b_UsfOi1KoEbiIQKaL5OQvsaE4wj8oENafpGa_6KEerhbYY6ejkMGt5FWJAB9brFxtFbmh26BCg-gbkAO4WwyIyeFzH_sCs" />
-              </div>
-              <h4 className="font-bold text-slate-700 dark:text-slate-200 text-sm">共情能力工作坊</h4>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 mb-4 line-clamp-2">引导孩子理解他人情绪，建立同理心，改善人际交往质量。</p>
-              <button onClick={() => onOpenActivity?.('共情能力工作坊')} className="w-full py-2.5 rounded-xl border border-primary/30 text-primary text-xs font-semibold hover:bg-primary/5 dark:hover:bg-primary/10 transition-colors">预约活动</button>
-            </div>
-          </div>
-        </section>
+        <RecommendedSection category="social" onOpenService={onOpenService} onOpenActivity={onOpenActivity} />
       </main>
     </div>
   );

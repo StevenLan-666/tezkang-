@@ -2,13 +2,34 @@ import React, { useState } from 'react';
 
 interface ActivityRegistrationProps {
   onBack: () => void;
-  onSubmit: () => void;
+  onSubmit: (formData: {
+    childName: string;
+    childAge: number;
+    childGender: string;
+    healthNotes: string;
+    selectedDate: string;
+    selectedTime: string;
+    parentName: string;
+    parentPhone: string;
+  }) => void;
   title?: string;
+  defaultChildName?: string;
+  defaultChildAge?: string;
+  defaultChildGender?: string;
+  defaultParentName?: string;
+  defaultParentPhone?: string;
 }
 
-export default function ActivityRegistration({ onBack, onSubmit, title }: ActivityRegistrationProps) {
+export default function ActivityRegistration({ onBack, onSubmit, title, defaultChildName, defaultChildAge, defaultChildGender, defaultParentName, defaultParentPhone }: ActivityRegistrationProps) {
+  const [childName, setChildName] = useState(defaultChildName || '');
+  const [childAge, setChildAge] = useState(defaultChildAge || '');
+  const [childGender, setChildGender] = useState(defaultChildGender || '男');
+  const [healthNotes, setHealthNotes] = useState('');
   const [selectedDate, setSelectedDate] = useState<number | null>(24);
   const [selectedTime, setSelectedTime] = useState<string | null>('上午场 09:00-12:00');
+  const [parentName, setParentName] = useState(defaultParentName || '');
+  const [parentPhone, setParentPhone] = useState(defaultParentPhone || '');
+  const [submitting, setSubmitting] = useState(false);
 
   const dates = [
     { day: '周六', date: 24 },
@@ -22,6 +43,30 @@ export default function ActivityRegistration({ onBack, onSubmit, title }: Activi
     { time: '下午场 14:00-17:00', available: true },
     { time: '全天场 09:00-17:00', available: false },
   ];
+
+  const handleSubmit = async () => {
+    if (!childName.trim()) { alert('请输入儿童姓名'); return; }
+    if (!parentName.trim()) { alert('请输入家长姓名'); return; }
+    if (!parentPhone.trim()) { alert('请输入手机号码'); return; }
+
+    setSubmitting(true);
+    try {
+      await onSubmit({
+        childName,
+        childAge: parseInt(childAge) || 0,
+        childGender,
+        healthNotes,
+        selectedDate: selectedDate ? `${selectedDate}日` : '',
+        selectedTime: selectedTime || '',
+        parentName,
+        parentPhone,
+      });
+    } catch {
+      // 错误已在 App.tsx 中处理
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className="bg-background-light dark:bg-background-dark text-text-main dark:text-white min-h-screen transition-colors duration-200 antialiased pb-24 flex flex-col">
@@ -45,24 +90,26 @@ export default function ActivityRegistration({ onBack, onSubmit, title }: Activi
       </header>
 
       <main className="px-6 space-y-6 pt-2 flex-1 overflow-y-auto">
+        {/* 步骤指示 - 测试阶段简化为2步 */}
         <div className="flex items-center justify-between px-2">
-          <div className="flex flex-col items-center gap-1 w-1/4">
+          <div className="flex flex-col items-center gap-1 w-1/3">
             <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center text-sm font-bold shadow-lg shadow-primary/20">1</div>
-            <span className="text-[10px] font-semibold text-primary">信息</span>
+            <span className="text-[10px] font-semibold text-primary">填写信息</span>
           </div>
           <div className="h-[2px] w-full bg-primary/20 rounded-full"></div>
-          <div className="flex flex-col items-center gap-1 w-1/4">
+          <div className="flex flex-col items-center gap-1 w-1/3">
             <div className="w-8 h-8 rounded-full bg-surface-light dark:bg-surface-dark border-2 border-primary/20 text-text-sub dark:text-slate-400 flex items-center justify-center text-sm font-bold">2</div>
-            <span className="text-[10px] font-semibold text-text-sub dark:text-slate-400">支付</span>
-          </div>
-          <div className="h-[2px] w-full bg-primary/20 rounded-full"></div>
-          <div className="flex flex-col items-center gap-1 w-1/4">
-            <div className="w-8 h-8 rounded-full bg-surface-light dark:bg-surface-dark border-2 border-primary/20 text-text-sub dark:text-slate-400 flex items-center justify-center text-sm font-bold">3</div>
-            <span className="text-[10px] font-semibold text-text-sub dark:text-slate-400">确认</span>
+            <span className="text-[10px] font-semibold text-text-sub dark:text-slate-400">确认报名</span>
           </div>
         </div>
 
-        <form className="space-y-6" onSubmit={(e) => { e.preventDefault(); onSubmit(); }}>
+        {/* 测试阶段提示 */}
+        <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl px-4 py-2.5 flex items-center gap-2">
+          <span className="material-symbols-outlined text-amber-500 !text-[16px]">info</span>
+          <span className="text-xs text-amber-700 dark:text-amber-400">测试阶段：暂不需要实际支付</span>
+        </div>
+
+        <div className="space-y-6">
           <section className="bg-surface-light dark:bg-surface-dark p-5 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
             <h2 className="text-base font-bold text-text-main dark:text-white mb-4 flex items-center gap-2">
               <span className="material-symbols-outlined text-primary">face</span>
@@ -70,18 +117,18 @@ export default function ActivityRegistration({ onBack, onSubmit, title }: Activi
             </h2>
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-text-sub dark:text-slate-400 mb-1.5 ml-1">儿童姓名</label>
-                <input className="w-full bg-background-light dark:bg-background-dark border-none rounded-xl py-3 px-4 text-sm text-text-main dark:text-white placeholder-slate-400/50 focus:ring-2 focus:ring-primary/50 transition-all outline-none" placeholder="请输入儿童姓名" type="text" />
+                <label className="block text-xs font-semibold text-text-sub dark:text-slate-400 mb-1.5 ml-1">儿童姓名 *</label>
+                <input value={childName} onChange={e => setChildName(e.target.value)} className="w-full bg-background-light dark:bg-background-dark border-none rounded-xl py-3 px-4 text-sm text-text-main dark:text-white placeholder-slate-400/50 focus:ring-2 focus:ring-primary/50 transition-all outline-none" placeholder="请输入儿童姓名" type="text" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-text-sub dark:text-slate-400 mb-1.5 ml-1">年龄</label>
-                  <input className="w-full bg-background-light dark:bg-background-dark border-none rounded-xl py-3 px-4 text-sm text-text-main dark:text-white focus:ring-2 focus:ring-primary/50 transition-all outline-none" placeholder="例如: 8" type="number" />
+                  <input value={childAge} onChange={e => setChildAge(e.target.value)} className="w-full bg-background-light dark:bg-background-dark border-none rounded-xl py-3 px-4 text-sm text-text-main dark:text-white focus:ring-2 focus:ring-primary/50 transition-all outline-none" placeholder="例如: 8" type="number" />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-text-sub dark:text-slate-400 mb-1.5 ml-1">性别</label>
                   <div className="relative">
-                    <select className="w-full bg-background-light dark:bg-background-dark border-none rounded-xl py-3 px-4 text-sm text-text-main dark:text-white focus:ring-2 focus:ring-primary/50 transition-all appearance-none outline-none">
+                    <select value={childGender} onChange={e => setChildGender(e.target.value)} className="w-full bg-background-light dark:bg-background-dark border-none rounded-xl py-3 px-4 text-sm text-text-main dark:text-white focus:ring-2 focus:ring-primary/50 transition-all appearance-none outline-none">
                       <option>男</option>
                       <option>女</option>
                     </select>
@@ -99,7 +146,7 @@ export default function ActivityRegistration({ onBack, onSubmit, title }: Activi
             </h2>
             <div>
               <label className="block text-xs font-semibold text-text-sub dark:text-slate-400 mb-1.5 ml-1">是否有食物过敏或其他需要注意的健康状况？</label>
-              <textarea className="w-full bg-background-light dark:bg-background-dark border-none rounded-xl py-3 px-4 text-sm text-text-main dark:text-white placeholder-slate-400/50 focus:ring-2 focus:ring-primary/50 transition-all resize-none outline-none" placeholder="无特殊情况可不填" rows={3}></textarea>
+              <textarea value={healthNotes} onChange={e => setHealthNotes(e.target.value)} className="w-full bg-background-light dark:bg-background-dark border-none rounded-xl py-3 px-4 text-sm text-text-main dark:text-white placeholder-slate-400/50 focus:ring-2 focus:ring-primary/50 transition-all resize-none outline-none" placeholder="无特殊情况可不填" rows={3}></textarea>
             </div>
           </section>
 
@@ -116,11 +163,10 @@ export default function ActivityRegistration({ onBack, onSubmit, title }: Activi
                     <button
                       key={`${d.date}-${idx}`}
                       onClick={() => setSelectedDate(d.date)}
-                      className={`flex-shrink-0 w-14 h-20 rounded-2xl flex flex-col items-center justify-center transition-all ${
-                        selectedDate === d.date
-                          ? 'bg-primary text-white shadow-lg shadow-primary/30'
-                          : 'bg-background-light dark:bg-background-dark border border-transparent hover:border-primary/30 text-text-sub dark:text-slate-400'
-                      }`}
+                      className={`flex-shrink-0 w-14 h-20 rounded-2xl flex flex-col items-center justify-center transition-all ${selectedDate === d.date
+                        ? 'bg-primary text-white shadow-lg shadow-primary/30'
+                        : 'bg-background-light dark:bg-background-dark border border-transparent hover:border-primary/30 text-text-sub dark:text-slate-400'
+                        }`}
                       type="button"
                     >
                       <span className={`text-xs font-medium ${selectedDate === d.date ? 'opacity-80' : ''}`}>{d.day}</span>
@@ -137,13 +183,12 @@ export default function ActivityRegistration({ onBack, onSubmit, title }: Activi
                       key={t.time}
                       disabled={!t.available}
                       onClick={() => setSelectedTime(t.time)}
-                      className={`py-3 px-4 rounded-xl text-sm transition-colors text-left ${
-                        !t.available
-                          ? 'border border-slate-200 dark:border-slate-700 font-medium text-text-sub dark:text-slate-400 opacity-50 cursor-not-allowed bg-slate-50 dark:bg-slate-900 line-through'
-                          : selectedTime === t.time
+                      className={`py-3 px-4 rounded-xl text-sm transition-colors text-left ${!t.available
+                        ? 'border border-slate-200 dark:border-slate-700 font-medium text-text-sub dark:text-slate-400 opacity-50 cursor-not-allowed bg-slate-50 dark:bg-slate-900 line-through'
+                        : selectedTime === t.time
                           ? 'bg-primary text-white font-bold shadow-md shadow-primary/20'
                           : 'border border-slate-200 dark:border-slate-700 font-medium text-text-sub dark:text-slate-400 hover:border-primary hover:text-primary bg-white dark:bg-slate-800'
-                      }`}
+                        }`}
                       type="button"
                     >
                       {t.time}
@@ -161,16 +206,16 @@ export default function ActivityRegistration({ onBack, onSubmit, title }: Activi
             </h2>
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-text-sub dark:text-slate-400 mb-1.5 ml-1">家长姓名</label>
-                <input className="w-full bg-background-light dark:bg-background-dark border-none rounded-xl py-3 px-4 text-sm text-text-main dark:text-white focus:ring-2 focus:ring-primary/50 transition-all outline-none" type="text" />
+                <label className="block text-xs font-semibold text-text-sub dark:text-slate-400 mb-1.5 ml-1">家长姓名 *</label>
+                <input value={parentName} onChange={e => setParentName(e.target.value)} className="w-full bg-background-light dark:bg-background-dark border-none rounded-xl py-3 px-4 text-sm text-text-main dark:text-white focus:ring-2 focus:ring-primary/50 transition-all outline-none" type="text" placeholder="请输入家长姓名" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-text-sub dark:text-slate-400 mb-1.5 ml-1">手机号码</label>
+                <label className="block text-xs font-semibold text-text-sub dark:text-slate-400 mb-1.5 ml-1">手机号码 *</label>
                 <div className="flex">
                   <span className="inline-flex items-center px-3 rounded-l-xl border border-r-0 border-transparent bg-background-light dark:bg-background-dark text-text-sub sm:text-sm">
                     +86
                   </span>
-                  <input className="w-full bg-background-light dark:bg-background-dark border-none rounded-r-xl py-3 px-4 text-sm text-text-main dark:text-white focus:ring-2 focus:ring-primary/50 transition-all border-l border-slate-200 dark:border-slate-700 outline-none" type="tel" />
+                  <input value={parentPhone} onChange={e => setParentPhone(e.target.value)} className="w-full bg-background-light dark:bg-background-dark border-none rounded-r-xl py-3 px-4 text-sm text-text-main dark:text-white focus:ring-2 focus:ring-primary/50 transition-all border-l border-slate-200 dark:border-slate-700 outline-none" type="tel" placeholder="请输入手机号" />
                 </div>
               </div>
             </div>
@@ -183,7 +228,7 @@ export default function ActivityRegistration({ onBack, onSubmit, title }: Activi
             </p>
           </div>
           <div className="h-24"></div>
-        </form>
+        </div>
       </main>
 
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-surface-light dark:bg-surface-dark border-t border-slate-100 dark:border-slate-800 p-4 pb-8 shadow-[0_-4px_20px_-2px_rgba(0,0,0,0.05)] pb-safe flex justify-center">
@@ -194,10 +239,15 @@ export default function ActivityRegistration({ onBack, onSubmit, title }: Activi
               <span className="text-sm font-bold text-primary">¥</span>
               <span className="text-2xl font-bold text-text-main dark:text-white font-display">299.00</span>
             </div>
+            <span className="text-[10px] text-amber-500">测试阶段免支付</span>
           </div>
-          <button onClick={onSubmit} className="flex-1 bg-primary hover:bg-primary-dark text-white font-bold py-3.5 px-6 rounded-xl shadow-lg shadow-primary/30 flex items-center justify-center gap-2 transition-all active:scale-95">
-            确认报名
-            <span className="material-symbols-outlined text-sm">arrow_forward</span>
+          <button
+            onClick={handleSubmit}
+            disabled={submitting}
+            className="flex-1 bg-primary hover:bg-primary-dark text-white font-bold py-3.5 px-6 rounded-xl shadow-lg shadow-primary/30 flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50"
+          >
+            {submitting ? '提交中...' : '确认报名'}
+            {!submitting && <span className="material-symbols-outlined text-sm">arrow_forward</span>}
           </button>
         </div>
         <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 w-1/3 h-1 bg-slate-300 dark:bg-slate-600 rounded-full"></div>

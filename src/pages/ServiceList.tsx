@@ -1,102 +1,104 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useHistoryRecords } from '../hooks/useHealthData';
+import { supabase } from '../lib/supabase';
 
 interface ServiceListProps {
   onBack: () => void;
   onOpenDetail: (title: string) => void;
   onOpenDetailReport?: (title: string) => void;
   onOpenFeedback?: () => void;
-  registeredServices?: string[];
+  registrations?: any[];
   initialFilter?: string;
-  highlightTitle?: string;
-  onHighlightConsumed?: () => void;
   childId?: string | null;
+  profileId?: string | null;
+  refetchRegistrations?: (reg: any) => Promise<void>;
 }
 
-export default function ServiceList({ onBack, onOpenDetail, onOpenDetailReport, onOpenFeedback, registeredServices = [], initialFilter, highlightTitle, onHighlightConsumed, childId }: ServiceListProps) {
+export default function ServiceList({ onBack, onOpenDetail, onOpenDetailReport, onOpenFeedback, registrations = [], initialFilter, childId, profileId, refetchRegistrations }: ServiceListProps) {
   const [activeFilter, setActiveFilter] = useState(initialFilter || '全部');
-  const itemRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
+  const [loadingComplete, setLoadingComplete] = useState<string | null>(null);
 
   useEffect(() => {
-    if (highlightTitle && itemRefs.current[highlightTitle]) {
-      itemRefs.current[highlightTitle]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      onHighlightConsumed?.();
+    setActiveFilter(initialFilter || '全部');
+  }, [initialFilter]);
+
+  const filters = ['全部', '可预约', '待服务', '已完成', '已取消'];
+
+  // 从数据库加载服务
+  const [dbServices, setDbServices] = useState<any[]>([]);
+  const [dbLoading, setDbLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchServices = async () => {
+      const { data, error } = await supabase.from('services').select('*').order('created_at', { ascending: false });
+      if (error) console.error('加载服务失败:', error);
+      if (data) setDbServices(data);
+      setDbLoading(false);
+    };
+    fetchServices();
+  }, []);
+
+  const handleCompleteService = async (item: any) => {
+    try {
+      setLoadingComplete(item.id);
+
+      // @ts-ignore
+      const { error: updateErr } = await supabase
+        .from('registrations')
+        .update({ status: 'completed', completed_at: new Date().toISOString() })
+        .eq('id', item.registrationId);
+
+      if (updateErr) throw updateErr;
+
+      // 由后端的 Supabase Trigger 'sync_completed_to_history' 接管历史记录与测试评估数据的插入
+      // 因此不需要前端在此重复执行 insert 动作
+
+      await refetchRegistrations?.(null);
+      alert('已模拟完成该服务');
+    } catch (e) {
+      console.error(e);
+      alert('模拟完成失败');
+    } finally {
+      setLoadingComplete(null);
     }
-  }, [highlightTitle, activeFilter]);
+  };
 
-  const filters = ['全部', '待服务', '已完成', '已取消'];
+  // 将 DB 数据映射为列表卡片格式，合并报名状态
+  const baseServices = dbServices
+    .filter(s => s.status === 'available')
+    .map(s => {
+      // 在 registrations 找这门课
+      const reg = registrations.find(r => r.item_title === s.title);
+      let status = '可预约';
+      if (reg) {
+        status = reg.status === 'completed' ? '已完成' : '待服务';
+      }
 
-  const baseServices = [
-    {
-      id: 1,
-      title: '一对一心理咨询与行为干预',
-      desc: '由资深儿童心理专家提供个性化的评估与干预方案，帮助孩子改善注意力、控制冲动，并提升社交技能。',
-      expert: '李医生 (主任医师)',
-      status: registeredServices.includes('一对一心理咨询与行为干预') ? '待服务' : '可预约',
-      image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBWgXMCoejP-ji49PT_G4y_pHGMWgzucXvI-Dfg52VVmAGQfLoZoWgPyYzeem7tJK26t-lajTAtKWNe4MQUb2x06Hj2F9cUl6Erg-KGMtvl941P4324xD8bGo0TrJwZvRdvfh-ipNmYmI76nNKvlaCBH-3oMCryWuDSU3gTw5tbhssl6b_UsfOi1KoEbiIQKaL5OQvsaE4wj8oENafpGa_6KEerhbYY6ejkMGt5FWJAB9brFxtFbmh26BCg-gbkAO4WwyIyeFzH_sCs',
-      rating: '4.9'
-    },
-    {
-      id: 2,
-      title: '家庭教育指导',
-      desc: '为家长提供专业的教育建议，帮助家长更好地理解和引导孩子的成长。',
-      expert: '王老师 (高级家庭教育指导师)',
-      status: registeredServices.includes('家庭教育指导') ? '待服务' : '可预约',
-      image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDCJhrTGsnpisibkRqqOuKw0VRd0KD2uVn6RR0_B5aVlhvR-lyWVsnTO4Uy7KblhLfvwmAwdBt20SYfb6jbsUNlLD1e52HN_26J_lJ53PlmcbeJQhaCWQyJ0aVwItN8aYIr6svWEgvruhnvlKFeXRkhodLzz4Hhjv9l7XXyduZQ4lPrM0y7maScpmOxy495VWFED0ZwQqC1BV9nQb3GASvMqMhxS3kS5oFo5MvtQLMeYmZetPAoi57cgWxI2UwdGhWSON46c6vtqoMO',
-      rating: '4.8'
-    },
-    {
-      id: 3,
-      title: '认知功能训练',
-      desc: '通过科学的训练方法，提升孩子的认知能力、记忆力和注意力。',
-      expert: '张医生 (康复治疗师)',
-      status: registeredServices.includes('认知功能训练') ? '待服务' : '可预约',
-      image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAs-Z7O0AMJ7PXGl6vZu5-FQ3JNJd9HcocBNtMZNesLFyqbBV66gKk3wClj2D80s3lak4NkghL_YnzatCTslysoVkUV5FOMq0J2JgEH1DGif3vbt8wx5RfKo_VIC3GwZZttHAcZqSLvA6NXqsdii9RxYM49Pn6LS_vY8exPRsrGXMzW5LtkPxjrmW_ZI3wsgVHuUpzg8MceH_YfhLzUXSONk4ip3z7Ao0SVjBDkPc9ZXCCuTFwBw23LoCYTFMDL3acN2MXvxxhyE80O',
-      rating: '4.7'
-    },
-    {
-      id: 6,
-      title: '社交技能提升班',
-      desc: '通过互动游戏和角色扮演，提升孩子在集体环境中的沟通与协作能力。',
-      expert: '王老师 (高级家庭教育指导师)',
-      status: registeredServices.includes('社交技能提升班') ? '待服务' : '可预约',
-      image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDCJhrTGsnpisibkRqqOuKw0VRd0KD2uVn6RR0_B5aVlhvR-lyWVsnTO4Uy7KblhLfvwmAwdBt20SYfb6jbsUNlLD1e52HN_26J_lJ53PlmcbeJQhaCWQyJ0aVwItN8aYIr6svWEgvruhnvlKFeXRkhodLzz4Hhjv9l7XXyduZQ4lPrM0y7maScpmOxy495VWFED0ZwQqC1BV9nQb3GASvMqMhxS3kS5oFo5MvtQLMeYmZetPAoi57cgWxI2UwdGhWSON46c6vtqoMO',
-      rating: '4.8'
-    },
-    {
-      id: 7,
-      title: '行为规范引导课',
-      desc: '通过专业引导，帮助孩子建立良好的日常行为规范和自律习惯。',
-      expert: '张医生 (康复治疗师)',
-      status: registeredServices.includes('行为规范引导课') ? '待服务' : '可预约',
-      image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDCJhrTGsnpisibkRqqOuKw0VRd0KD2uVn6RR0_B5aVlhvR-lyWVsnTO4Uy7KblhLfvwmAwdBt20SYfb6jbsUNlLD1e52HN_26J_lJ53PlmcbeJQhaCWQyJ0aVwItN8aYIr6svWEgvruhnvlKFeXRkhodLzz4Hhjv9l7XXyduZQ4lPrM0y7maScpmOxy495VWFED0ZwQqC1BV9nQb3GASvMqMhxS3kS5oFo5MvtQLMeYmZetPAoi57cgWxI2UwdGhWSON46c6vtqoMO',
-      rating: '4.7'
-    },
-    {
-      id: 9,
-      title: '情绪调节',
-      desc: '一对一咨询，促进情感成长和稳定。',
-      expert: '刘老师 (资深评估师)',
-      status: registeredServices.includes('情绪调节') ? '待服务' : '可预约',
-      image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBWgXMCoejP-ji49PT_G4y_pHGMWgzucXvI-Dfg52VVmAGQfLoZoWgPyYzeem7tJK26t-lajTAtKWNe4MQUb2x06Hj2F9cUl6Erg-KGMtvl941P4324xD8bGo0TrJwZvRdvfh-ipNmYmI76nNKvlaCBH-3oMCryWuDSU3gTw5tbhssl6b_UsfOi1KoEbiIQKaL5OQvsaE4wj8oENafpGa_6KEerhbYY6ejkMGt5FWJAB9brFxtFbmh26BCg-gbkAO4WwyIyeFzH_sCs',
-      rating: '4.9'
-    },
-    {
-      id: 5,
-      title: '日常测试和干预',
-      desc: '由专业老师进行全面评估，提供日常行为和社交能力的测试与干预指导。',
-      expert: '刘老师 (资深评估师)',
-      status: registeredServices.includes('日常测试和干预') ? '待服务' : '可预约',
-      image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBWgXMCoejP-ji49PT_G4y_pHGMWgzucXvI-Dfg52VVmAGQfLoZoWgPyYzeem7tJK26t-lajTAtKWNe4MQUb2x06Hj2F9cUl6Erg-KGMtvl941P4324xD8bGo0TrJwZvRdvfh-ipNmYmI76nNKvlaCBH-3oMCryWuDSU3gTw5tbhssl6b_UsfOi1KoEbiIQKaL5OQvsaE4wj8oENafpGa_6KEerhbYY6ejkMGt5FWJAB9brFxtFbmh26BCg-gbkAO4WwyIyeFzH_sCs',
-      rating: '4.9'
-    }
-  ];
+      return {
+        id: s.id,
+        title: s.title,
+        desc: s.description || '',
+        expert: reg?.assigned_staff ? reg.assigned_staff : `${s.provider_name} (${s.provider_title})`,
+        status,
+        registrationId: reg?.id || null, // 用于点击完成
+        image: s.image_url || 'https://lh3.googleusercontent.com/aida-public/AB6AXuBWgXMCoejP-ji49PT_G4y_pHGMWgzucXvI-Dfg52VVmAGQfLoZoWgPyYzeem7tJK26t-lajTAtKWNe4MQUb2x06Hj2F9cUl6Erg-KGMtvl941P4324xD8bGo0TrJwZvRdvfh-ipNmYmI76nNKvlaCBH-3oMCryWuDSU3gTw5tbhssl6b_UsfOi1KoEbiIQKaL5OQvsaE4wj8oENafpGa_6KEerhbYY6ejkMGt5FWJAB9brFxtFbmh26BCg-gbkAO4WwyIyeFzH_sCs',
+        rating: s.rating?.toString() || '4.5',
+      };
+    });
 
-  // 一次"日常测试和干预"服务 → 同时产生 social/behavior/decision 三条 test 记录
-  // 按 record_date 分组，每个日期对应一次服务
+  // 从 DB 中查找评估干预类服务（用于历史记录展示聚合）
+  const assessmentService = dbServices.find(s => s.title?.includes('干预') || s.title?.includes('心理咨询'));
+  const assessmentServiceTitle = assessmentService?.title || '一对一心理咨询和行为干预';
+  const assessmentServiceExpert = assessmentService
+    ? `${assessmentService.provider_name} (${assessmentService.provider_title})`
+    : '刘老师 (资深评估师)';
+  const assessmentServiceImage = assessmentService?.image_url || 'https://lh3.googleusercontent.com/aida-public/AB6AXuBWgXMCoejP-ji49PT_G4y_pHGMWgzucXvI-Dfg52VVmAGQfLoZoWgPyYzeem7tJK26t-lajTAtKWNe4MQUb2x06Hj2F9cUl6Erg-KGMtvl941P4324xD8bGo0TrJwZvRdvfh-ipNmYmI76nNKvlaCBH-3oMCryWuDSU3gTw5tbhssl6b_UsfOi1KoEbiIQKaL5OQvsaE4wj8oENafpGa_6KEerhbYY6ejkMGt5FWJAB9brFxtFbmh26BCg-gbkAO4WwyIyeFzH_sCs';
+
+  // 将社交/行为/决策的 test 记录，按日期分组模拟为当次服务发生
   const { records: testRecords } = useHistoryRecords(childId || null);
   const historyServices = useMemo(() => {
-    const testOnly = testRecords.filter(item => item.record_type === 'test');
+    // 只取 social, behavior, decision 类型的 test
+    const testOnly = testRecords.filter(item => item.record_type === 'test' && ['social', 'behavior', 'decision'].includes(item.category as string));
     const grouped: Record<string, typeof testOnly> = {};
     testOnly.forEach(item => {
       const date = item.record_date || 'unknown';
@@ -104,20 +106,21 @@ export default function ServiceList({ onBack, onOpenDetail, onOpenDetailReport, 
       grouped[date].push(item);
     });
     return Object.entries(grouped).map(([date, items]) => {
-      const categories = items.map(i => i.title).join('、');
-      const statusSummary = items.map(i => `${i.title}: ${i.status}`).join('；');
+      // 从标题里抽出前面几个字，如“社交能力”、“行为表现”
+      const categories = items.map(i => i.title.replace('综合评估', '').replace(/（.*）/, '')).join('、');
       return {
-        id: `svc-${date}`,
-        title: '日常测试和干预',
-        desc: `${date} 完成评估（${categories}）。${statusSummary}`,
-        expert: '刘老师 (资深评估师)',
+        id: `svc-hist-${date}`,
+        title: assessmentServiceTitle,
+        desc: `${date} 完成评估（${categories}）。`,
+        expert: assessmentServiceExpert,
         status: '已完成',
-        image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBWgXMCoejP-ji49PT_G4y_pHGMWgzucXvI-Dfg52VVmAGQfLoZoWgPyYzeem7tJK26t-lajTAtKWNe4MQUb2x06Hj2F9cUl6Erg-KGMtvl941P4324xD8bGo0TrJwZvRdvfh-ipNmYmI76nNKvlaCBH-3oMCryWuDSU3gTw5tbhssl6b_UsfOi1KoEbiIQKaL5OQvsaE4wj8oENafpGa_6KEerhbYY6ejkMGt5FWJAB9brFxtFbmh26BCg-gbkAO4WwyIyeFzH_sCs',
+        image: assessmentServiceImage,
         rating: '5.0'
       };
     });
-  }, [testRecords]);
+  }, [testRecords, assessmentServiceTitle, assessmentServiceExpert, assessmentServiceImage]);
 
+  // 合并当前的预约服务状态与由测试报告推断出来的已完成历史服务
   const services = [...baseServices, ...historyServices];
 
   const filteredServices = activeFilter === '全部'
@@ -168,8 +171,7 @@ export default function ServiceList({ onBack, onOpenDetail, onOpenDetailReport, 
         {filteredServices.map((service) => (
           <div
             key={service.id}
-            ref={el => itemRefs.current[service.title] = el}
-            className={`bg-surface-light dark:bg-surface-dark rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden group cursor-pointer transform hover:scale-[1.01] transition-all duration-300 ${service.status === '已取消' ? 'opacity-75 hover:opacity-100' : ''} ${highlightTitle === service.title ? 'ring-2 ring-primary ring-offset-2 dark:ring-offset-background-dark' : ''}`}
+            className={`bg-surface-light dark:bg-surface-dark rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden group cursor-pointer transform hover:scale-[1.01] transition-all duration-300 ${service.status === '已取消' ? 'opacity-75 hover:opacity-100' : ''}`}
           >
             <div className={`h-44 w-full bg-slate-200 dark:bg-slate-700 relative ${service.status === '已取消' ? 'grayscale' : ''}`}>
               <img alt={service.title} className="w-full h-full object-cover" src={service.image} />
@@ -200,6 +202,7 @@ export default function ServiceList({ onBack, onOpenDetail, onOpenDetailReport, 
                 <span className="material-symbols-outlined text-[12px]">star</span> {service.rating}
               </div>
             </div>
+
             <div className="p-5">
               <div className="flex justify-between items-start mb-2">
                 <h3 className="text-base font-bold text-text-main dark:text-white leading-snug">{service.title}</h3>
@@ -207,6 +210,7 @@ export default function ServiceList({ onBack, onOpenDetail, onOpenDetailReport, 
               <p className="text-xs text-text-sub dark:text-slate-400 mb-4 line-clamp-2 leading-relaxed">
                 {service.desc}
               </p>
+
               <div className="flex items-center justify-between pt-2 border-t border-slate-50 dark:border-slate-800">
                 <div className="flex items-center gap-2 text-xs text-text-sub dark:text-slate-400 font-medium">
                   <span className="material-symbols-outlined text-[18px] text-primary">person</span>
@@ -218,14 +222,25 @@ export default function ServiceList({ onBack, onOpenDetail, onOpenDetailReport, 
                     立即预约
                   </button>
                 )}
+
                 {service.status === '待服务' && (
-                  <button className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-xs font-semibold px-5 py-2.5 rounded-xl transition-colors cursor-default">
-                    等待服务
-                  </button>
+                  <div className="flex gap-2">
+                    {loadingComplete === service.id ? (
+                      <div className="w-4 h-4 border-2 border-primary-500 border-t-transparent rounded-full animate-spin mt-1"></div>
+                    ) : (
+                      <button onClick={(e) => { e.stopPropagation(); handleCompleteService(service); }} className="text-[11px] font-bold text-white bg-primary-500 hover:bg-primary-600 px-3 py-1.5 rounded-lg active:scale-95 transition-all">
+                        模拟完成
+                      </button>
+                    )}
+                    <button className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-xs font-semibold px-5 py-2.5 rounded-xl transition-colors cursor-default">
+                      等待服务
+                    </button>
+                  </div>
                 )}
+
                 {service.status === '已完成' && (
                   <div className="flex gap-2">
-                    <button onClick={() => onOpenDetailReport?.(service.title)} className="bg-primary/10 hover:bg-primary/20 text-primary text-xs font-semibold px-4 py-1.5 rounded-lg transition-colors">
+                    <button onClick={(e) => { e.stopPropagation(); onOpenDetailReport?.(service.title); }} className="text-[11px] font-bold text-primary dark:text-primary-400 bg-primary/10 dark:bg-primary/20 px-3 py-1.5 rounded-lg active:scale-95 transition-all">
                       查看详情
                     </button>
                     <button onClick={(e) => { e.stopPropagation(); onOpenFeedback?.(); }} className="bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold px-4 py-1.5 rounded-lg transition-colors flex items-center gap-1">
@@ -234,6 +249,7 @@ export default function ServiceList({ onBack, onOpenDetail, onOpenDetailReport, 
                     </button>
                   </div>
                 )}
+
                 {service.status === '已取消' && (
                   <button className="text-slate-400 dark:text-slate-500 text-xs font-semibold px-3 py-1.5 cursor-default">
                     重新预约

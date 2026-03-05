@@ -10,8 +10,8 @@ import { supabase } from '../lib/supabase';
 export default function Login({ onLogin }: { onLogin: () => void }) {
   const { signIn, signUp, resetPassword } = useAuth();
   const [view, setView] = useState<'login' | 'forgot_password' | 'register' | 'bind_email'>('login');
-  const [account, setAccount] = useState('');
-  const [password, setPassword] = useState('');
+  const [account, setAccount] = useState('tester13');
+  const [password, setPassword] = useState('7777777');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
