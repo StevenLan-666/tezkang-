@@ -20,7 +20,7 @@ interface PhysicalDataRow {
 
 export default function Dashboard({
   onOpenProfile, onOpenPhysicalDataUpdate, onOpenNextAppointment,
-  nextAppointment, onOpenHistory, childName, profileName,
+  nextAppointment, onOpenHistory, childName, profileName, profileRelation, childCreatedAt,
   healthScore, physicalData,
 }: {
   onOpenProfile?: () => void;
@@ -30,6 +30,8 @@ export default function Dashboard({
   onOpenHistory?: (category: string) => void;
   childName?: string;
   profileName?: string;
+  profileRelation?: string;
+  childCreatedAt?: string;
   healthScore?: HealthScoreData | null;
   physicalData?: PhysicalDataRow | null;
 }) {
@@ -38,6 +40,26 @@ export default function Dashboard({
   const [activityModal, setActivityModal] = useState(false);
   const [heartRateInput, setHeartRateInput] = useState('');
   const [activityInput, setActivityInput] = useState('');
+
+  // 问候弹窗状态
+  const [showGreetingModal, setShowGreetingModal] = useState(true);
+
+  // 获取问候语
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return '早上';
+    if (hour < 18) return '下午';
+    return '晚上';
+  };
+
+  // 计算陪伴天数
+  const getDays = () => {
+    if (!childCreatedAt) return 1;
+    const start = new Date(childCreatedAt).getTime();
+    const now = new Date().getTime();
+    const diff = Math.max(0, now - start);
+    return Math.floor(diff / (1000 * 3600 * 24)) + 1;
+  };
 
   // 从 DB 数据中提取，提供 fallback
   const score = healthScore?.score ?? 0;
@@ -62,7 +84,39 @@ export default function Dashboard({
   const activityPercent = Math.min(activityMin / 60, 1);
 
   return (
-    <div className="flex-1 overflow-y-auto pb-24">
+    <div className="flex-1 overflow-y-auto pb-24 relative">
+      {/* 登录问候弹窗 */}
+      {showGreetingModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm select-none">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 max-w-sm w-full shadow-2xl relative transform transition-all">
+            <button
+              onClick={() => setShowGreetingModal(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+            >
+              <span className="material-symbols-outlined pr-1 pt-1">close</span>
+            </button>
+            <div className="flex justify-center mb-5">
+              <div className="w-16 h-16 bg-primary/10 dark:bg-primary/20 rounded-full flex items-center justify-center">
+                <span className="material-symbols-outlined text-primary text-3xl">volunteer_activism</span>
+              </div>
+            </div>
+            <h3 className="text-2xl font-black text-center text-slate-800 dark:text-white mb-3">
+              {childName || '宝贝'}，{getGreeting()}好！
+            </h3>
+            <p className="text-center text-slate-600 dark:text-slate-300 leading-relaxed font-medium text-[15px]">
+              今天是{profileRelation || '妈妈'}陪伴你战胜病魔的<br />
+              第 <span className="text-primary font-black text-3xl mx-1">{getDays()}</span> 天！
+            </p>
+            <button
+              onClick={() => setShowGreetingModal(false)}
+              className="w-full mt-7 bg-primary hover:bg-primary-600 text-white font-bold py-3.5 rounded-xl active:scale-95 transition-all shadow-md shadow-primary/20"
+            >
+              继续加油
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="px-6 py-3 flex justify-between items-center text-xs font-semibold text-text-main dark:text-slate-300 opacity-70 sticky top-0 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md z-10">
         <span>16:58</span>
         <div className="flex gap-1.5 items-center">

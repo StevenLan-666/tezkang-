@@ -11,6 +11,7 @@ export interface Database {
                     id: string;
                     full_name: string;
                     phone: string;
+                    relation: string;
                     avatar_url: string;
                     created_at: string;
                     updated_at: string;
@@ -19,11 +20,13 @@ export interface Database {
                     id: string;
                     full_name?: string;
                     phone?: string;
+                    relation?: string;
                     avatar_url?: string;
                 };
                 Update: {
                     full_name?: string;
                     phone?: string;
+                    relation?: string;
                     avatar_url?: string;
                     updated_at?: string;
                 };

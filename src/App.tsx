@@ -192,6 +192,8 @@ function AuthenticatedApp({ signOut }: { signOut: () => Promise<void> }) {
         }}
         childName={activeChild?.full_name}
         profileName={profile?.full_name}
+        profileRelation={profile?.relation}
+        childCreatedAt={activeChild?.created_at}
         healthScore={healthScore}
         physicalData={physicalData}
       />;
@@ -207,7 +209,7 @@ function AuthenticatedApp({ signOut }: { signOut: () => Promise<void> }) {
       />;
       case 'behavior': return <Behavior onOpenTest={() => handleNavigate('assessment_subpage')} onOpenDetail={() => handleNavigate('behavior_detail')} onOpenService={(title) => { setDetailTitle(title || ''); setBookingType('service'); handleNavigate('service_detail'); }} onOpenActivity={(title) => { setDetailTitle(title || ''); setBookingType('activity'); handleNavigate('activity_detail'); }} onOpenHistory={() => { setHistoryTitle('行为表现'); handleNavigate('history_list'); }} onOpenFeedback={() => handleNavigate('feedback')} childId={activeChild?.id} />;
       case 'decision': return <Decision onOpenTest={() => handleNavigate('assessment_subpage')} onOpenDetail={() => handleNavigate('decision_detail')} onOpenService={(title) => { setDetailTitle(title || ''); setBookingType('service'); handleNavigate('service_detail'); }} onOpenActivity={(title) => { setDetailTitle(title || ''); setBookingType('activity'); handleNavigate('activity_detail'); }} onOpenHistory={() => { setHistoryTitle('决策方式'); handleNavigate('history_list'); }} onOpenFeedback={() => handleNavigate('feedback')} childId={activeChild?.id} />;
-      case 'profile': return <Profile onLogout={handleLogout} onBack={() => handleNavigate('dashboard')} profileName={profile?.full_name} profilePhone={profile?.phone} childName={activeChild?.full_name} childAge={activeChild?.age || undefined} childGender={activeChild?.gender || undefined} profileId={profile?.id} childId={activeChild?.id} onProfileUpdated={refetchProfile} />;
+      case 'profile': return <Profile onLogout={handleLogout} onBack={() => handleNavigate('dashboard')} profileName={profile?.full_name} profilePhone={profile?.phone} profileRelation={profile?.relation} childName={activeChild?.full_name} childAge={activeChild?.age || undefined} childGender={activeChild?.gender || undefined} profileId={profile?.id} childId={activeChild?.id} onProfileUpdated={refetchProfile} />;
       case 'test': return <Assessment onBack={goBack} />;
       case 'assessment_subpage': return <AssessmentSubPage onBack={goBack} />;
       case 'activity_detail_report': return <ActivityDetailReport onBack={goBack} title={detailTitle} childId={activeChild?.id} />;

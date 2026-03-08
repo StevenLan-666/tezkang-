@@ -10,6 +10,7 @@ interface ProfileProps {
   onBack: () => void;
   profileName?: string;
   profilePhone?: string;
+  profileRelation?: string;
   childName?: string;
   childAge?: number;
   childGender?: string;
@@ -19,13 +20,14 @@ interface ProfileProps {
 }
 
 export default function Profile({
-  onLogout, onBack, profileName, profilePhone,
+  onLogout, onBack, profileName, profilePhone, profileRelation,
   childName, childAge, childGender, profileId, childId, onProfileUpdated,
 }: ProfileProps) {
   // 监护人编辑
   const [editGuardian, setEditGuardian] = useState(false);
   const [guardianName, setGuardianName] = useState(profileName || '');
   const [guardianPhone, setGuardianPhone] = useState(profilePhone || '');
+  const [guardianRelation, setGuardianRelation] = useState(profileRelation || '妈妈');
   const [savingGuardian, setSavingGuardian] = useState(false);
 
   // 儿童编辑
@@ -42,6 +44,7 @@ export default function Profile({
         await (supabase.from('profiles') as any).update({
           full_name: guardianName,
           phone: guardianPhone,
+          relation: guardianRelation,
           updated_at: new Date().toISOString(),
         }).eq('id', profileId);
       }
@@ -111,7 +114,7 @@ export default function Profile({
             <div className="flex items-center gap-3">
               <span className="text-[17px] text-text-main dark:text-white">监护人信息</span>
               <div className="flex items-center gap-2 text-text-sub dark:text-slate-400 text-[15px]">
-                <span>{profileName || '未设置'}</span>
+                <span>{profileRelation || '妈妈'} - {profileName || '未设置'}</span>
                 <span>{profilePhone || '未设置'}</span>
               </div>
             </div>
@@ -128,6 +131,18 @@ export default function Profile({
               <div>
                 <label className="block text-xs font-semibold text-text-sub dark:text-slate-400 mb-1 ml-1">手机号</label>
                 <input value={guardianPhone} onChange={e => setGuardianPhone(e.target.value)} className="w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 text-sm text-text-main dark:text-white outline-none focus:ring-2 focus:ring-primary/50" placeholder="请输入手机号" type="tel" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-text-sub dark:text-slate-400 mb-1 ml-1">与被监护人关系</label>
+                <select value={guardianRelation} onChange={e => setGuardianRelation(e.target.value)} className="w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 text-sm text-text-main dark:text-white outline-none focus:ring-2 focus:ring-primary/50 appearance-none">
+                  <option value="妈妈">妈妈</option>
+                  <option value="爸爸">爸爸</option>
+                  <option value="爷爷">爷爷</option>
+                  <option value="奶奶">奶奶</option>
+                  <option value="外公">外公</option>
+                  <option value="外婆">外婆</option>
+                  <option value="其他">其他</option>
+                </select>
               </div>
               <button onClick={handleSaveGuardian} disabled={savingGuardian} className="w-full bg-primary text-white py-2.5 rounded-xl text-sm font-bold hover:bg-primary-dark transition-colors disabled:opacity-50">
                 {savingGuardian ? '保存中...' : '保存'}
